@@ -1,0 +1,2 @@
+label-studio==1.9.1.post0
+pytesseract==0.3.10

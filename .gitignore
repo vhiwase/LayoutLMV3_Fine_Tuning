@@ -4,3 +4,7 @@ my_model/
 my_tokenizer/
 __pycache__/
 .env
+input/
+output/
+working/
+venv/
