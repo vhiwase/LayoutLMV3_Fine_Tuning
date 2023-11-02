@@ -1,0 +1,5 @@
+logs/
+model_store/
+my_model/
+my_tokenizer/
+__pycache__/
