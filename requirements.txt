@@ -1,2 +1,4 @@
-label-studio==1.9.1.post0
-pytesseract==0.3.10
+PyMuPDF==1.23.5
+paddlepaddle==2.5.2
+paddleocr==2.7.0.3
+paddleclas==2.5.1

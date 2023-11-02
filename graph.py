@@ -16,7 +16,7 @@ model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
 # text_data = new_role['top_left_x'].apply(lambda x: str(x)+ '_') + new_role['top_right_x'].apply(str)
 new_role = paragraph_dataframe[420:1420]
 new_role = new_role.reset_index(drop=True)
-sentences = new_role['content'].tolist()
+sentences = new_role['text'].tolist()
 embeddings = model.encode(sentences)
 
 
@@ -88,8 +88,8 @@ new_role['normalized_score'] = new_role['D'].apply(lambda x: (4-x)/4)
 
 d = pd.DataFrame()
 d['I'] = new_role['I'].apply(lambda x: x[0])
-d['normalized_score'] = new_role['normalized_score'].apply(lambda x: "{:.2f}".format(x[0]))
-d['content'] = new_role['content']
+d['normalized_score'] = new_role['normalized_score'].apply(lambda x: x[0])
+d['text'] = new_role['text']
 d['index'] = new_role.index
 
 # X = d[["index", "I"]].values
