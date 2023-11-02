@@ -17,8 +17,10 @@ from sklearn.cluster import MeanShift, estimate_bandwidth
 from dotenv import load_dotenv
 from pathlib import Path
 import os
-
-FILE_PATH = Path(__file__)
+try:
+    FILE_PATH = Path(__file__)
+except NameError:
+    FILE_PATH = Path('.')
 BASE_PATH = FILE_PATH.parent
 
 dotenv_path = BASE_PATH /'.env'
@@ -84,8 +86,8 @@ def create_read_results_dataframes(result):
     line_widths = []
     line_heights = []
     line_units = []
-    line_numberss = []
-    line_numbers = 0
+    line_numbers = []
+    line_number = 0
 
     word_ocr_coordinates_dictionary = defaultdict(list)
     word_ocr_texts = []
@@ -95,7 +97,7 @@ def create_read_results_dataframes(result):
     word_widths = []
     word_heights = []
     word_units = []
-    word_line_numberss = []
+    word_line_numbers = []
     word_numbers = []
     word_number_counter = 0
 
@@ -108,7 +110,7 @@ def create_read_results_dataframes(result):
     selection_marks_widths = []
     selection_marks_heights = []
     selection_marks_units = []
-    selection_marks_line_numberss = []
+    selection_marks_line_numbers = []
     selection_mark_numbers = []
     selection_mark_number_counter = 0
 
@@ -121,8 +123,8 @@ def create_read_results_dataframes(result):
         # Lines and words
         lines = read_result.lines
         for line in lines:
-            line_numbers += 1
-            line_numberss.append(line_numbers)
+            line_number += 1
+            line_numbers.append(line_number)
             line_text = line.content
             line_ocr_texts.append(line_text)
             line_pages.append(page)
@@ -148,7 +150,7 @@ def create_read_results_dataframes(result):
                 line_ocr_coordinates_dictionary[line_corrd_key].append(line_corrd_value)
         words = read_result.words
         for word in words:
-            word_line_numberss.append(line_numbers)
+            word_line_numbers.append(line_number)
             word_number_counter += 1
             word_numbers.append(word_number_counter)
             word_ocr_texts.append(word.content)
@@ -177,7 +179,7 @@ def create_read_results_dataframes(result):
         # Selection marks
         selection_marks = read_result.selection_marks
         for selection_mark in selection_marks:
-            selection_marks_line_numberss.append(line_numbers)
+            selection_marks_line_numbers.append(line_number)
             selection_mark_number_counter += 1
             selection_mark_numbers.append(selection_mark_number_counter)
             selection_marks_confidences.append(selection_mark.confidence)
@@ -210,7 +212,7 @@ def create_read_results_dataframes(result):
     # Creating line DataFrame
     line_dictionary = dict()
     line_dictionary["text"] = line_ocr_texts
-    line_dictionary["line_numberss"] = line_numberss
+    line_dictionary["line_numbers"] = line_numbers
     line_dictionary.update(line_ocr_coordinates_dictionary)
     line_dataframe = pd.DataFrame(line_dictionary)
     line_dataframe["page"] = line_pages
@@ -221,20 +223,20 @@ def create_read_results_dataframes(result):
     line_dataframe = line_dataframe.sort_values(by=['page', 'bottom_left_y', 'bottom_left_x'], ignore_index=True)
     line_dataframe['bottom_left_x_diff'] = line_dataframe['bottom_left_y'].diff()
     line_dataframe['bottom_left_x_diff_bool'] = line_dataframe['bottom_left_x_diff'].apply(lambda x: True if 0<=x<0.015 else False)
-    line_numberss = []
+    line_numbers = []
     line_numbers_count = 0
     for true_false in line_dataframe['bottom_left_x_diff_bool']:
         if true_false == False:
             line_numbers_count += 1
-        line_numberss.append(line_numbers_count)
-    line_dataframe['line_numberss'] = line_numberss
-    line_dataframe = line_dataframe.sort_values(by=['page', 'line_numberss', 'bottom_left_x'], ignore_index=True)
+        line_numbers.append(line_numbers_count)
+    line_dataframe['line_numbers'] = line_numbers
+    line_dataframe = line_dataframe.sort_values(by=['page', 'line_numbers', 'bottom_left_x'], ignore_index=True)
 
 
     # Creating word DataFrame
     word_dictionary = dict()
     word_dictionary["text"] = word_ocr_texts
-    word_dictionary["line_numberss"] = word_line_numberss
+    word_dictionary["line_numbers"] = word_line_numbers
     word_dictionary["word_numbers"] = word_numbers
     word_dictionary["confidence"] = word_ocr_text_confidences
     word_dictionary.update(word_ocr_coordinates_dictionary)
@@ -249,7 +251,7 @@ def create_read_results_dataframes(result):
     selection_mark_dictionary = dict()
     selection_mark_dictionary["state"] = selection_marks_state
     selection_mark_dictionary["confidence"] = selection_marks_confidences
-    selection_mark_dictionary["line_numbers"] = selection_marks_line_numberss
+    selection_mark_dictionary["line_numbers"] = selection_marks_line_numbers
     selection_mark_dictionary["selection_mark_number"] = selection_mark_numbers
     selection_mark_dictionary.update(selection_marks_dictionary)
     selection_mark_dataframe = pd.DataFrame(selection_mark_dictionary)
@@ -726,15 +728,75 @@ def create_read_results_dataframes(result):
         
     line_dataframe = paragraph_extraction(line_dataframe)
     
+    text_lst = []
+    paragraph_number_lst = []
+    line_number_lst = []
+    page_lst = []
+    top_left_x_lst = []
+    top_left_y_lst = []
+    top_right_x_lst = []
+    top_right_y_lst = []
+    bottom_right_x_lst = []
+    bottom_right_y_lst = []
+    bottom_left_x_lst = []
+    bottom_left_y_lst = []
+    angle_lst = []
+    width_lst = []
+    height_lst = []
+    for paragraph_number in line_dataframe['paragraph_numbers']:
+        para_df = line_dataframe[line_dataframe['paragraph_numbers']==paragraph_number]
+        top_left_x = min(para_df['top_left_x'])
+        top_left_y = min(para_df['top_left_y'])
+        top_right_x = max(para_df['top_right_x'])
+        top_right_y = min(para_df['top_right_y'])
+        bottom_left_x = min(para_df['bottom_left_x'])
+        bottom_left_y = max(para_df['bottom_left_y'])
+        bottom_right_x = max(para_df['bottom_right_x'])
+        bottom_right_y = max(para_df['bottom_right_y'])        
+        text = '\n'.join(para_df['text'].tolist())
+        line_numbers = f"{min(para_df['line_numbers'])}_{max(para_df['line_numbers'])}"
+        page = sorted(set(para_df['page']))[0]
+        angle = sorted(set(para_df['angle']))[0]
+        width = sorted(set(para_df['width']))[0]
+        height = sorted(set(para_df['height']))[0]
+        text_lst.append(text)
+        paragraph_number_lst.append(paragraph_number)
+        line_number_lst.append(line_numbers)
+        page_lst.append(page)
+        top_left_x_lst.append(top_left_x)
+        top_left_y_lst.append(top_left_y)
+        top_right_x_lst.append(top_right_x)
+        top_right_y_lst.append(top_right_y)
+        bottom_right_x_lst.append(bottom_right_x)
+        bottom_right_y_lst.append(bottom_right_y)
+        bottom_left_x_lst.append(bottom_left_x)
+        bottom_left_y_lst.append(bottom_left_y)
+        angle_lst.append(angle)
+        width_lst.append(width)
+        height_lst.append(height)
+    
     paragraph_dataframe = pd.DataFrame()
-    for line_number in line_dataframe['paragraph_numbers']:
-        line_dataframe[line_dataframe['line_numbers']==line_number]
+    paragraph_dataframe['text'] = text_lst
+    paragraph_dataframe['paragraph_number'] = paragraph_number_lst
+    paragraph_dataframe['line_number'] = line_number_lst
+    paragraph_dataframe['page'] = page_lst
+    paragraph_dataframe['top_left_x'] = top_left_x_lst
+    paragraph_dataframe['top_left_y'] = top_left_y_lst
+    paragraph_dataframe['top_right_x'] = top_right_x_lst
+    paragraph_dataframe['top_right_y'] = top_right_y_lst
+    paragraph_dataframe['bottom_right_x'] = bottom_right_x_lst
+    paragraph_dataframe['bottom_right_y'] = bottom_right_y_lst
+    paragraph_dataframe['bottom_left_x'] = bottom_left_x_lst
+    paragraph_dataframe['bottom_left_y'] = bottom_left_y_lst
+    paragraph_dataframe['angle'] = angle_lst
+    paragraph_dataframe['width'] = width_lst
+    paragraph_dataframe['height'] = height_lst
     
     return line_dataframe, word_dataframe, selection_mark_dataframe, paragraph_dataframe, table_dataframe, key_value_pair_dataframe
 
 
 if __name__ == '__main__':
-    folder_name = 'Example 4'
+    folder_name = '../Example 6'
     file_path = f'./{folder_name}/example_pdf.pdf'
     with open(file_path, 'rb') as f:
         byte_data = f.read()
