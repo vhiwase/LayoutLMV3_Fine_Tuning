@@ -1,2 +1,3 @@
 paddleclas @ git+https://github.com/PaddlePaddle/PaddleClas.git@27b3591b36f5def1f8a385f9fadfbcd2e4741431
 paddleocr @ git+https://github.com/vhiwase/PaddleOCR.git@06647d6b91f501e61e37d409c07aab150f35d4e3
+transformers @ git+https://github.com/huggingface/transformers.git@eef7ea98c31a333bacdc7ae7a2372bde772be8e4

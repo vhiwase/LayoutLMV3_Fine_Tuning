@@ -8,3 +8,5 @@ input/
 output/
 working/
 venv/
+inputs
+Training_layoutLMV3.json

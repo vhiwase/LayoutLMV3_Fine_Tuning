@@ -15,7 +15,7 @@ def loss_fn(pred,target):
 class ModelModule(nn.Module):
     def __init__(self,n_classes:int) -> None:
         super().__init__()
-        self.model = LayoutLMv3ForTokenClassification.from_pretrained('../inputs/layoutlmv3Microsoft')
+        self.model = LayoutLMv3ForTokenClassification.from_pretrained('microsoft/layoutlmv3-base')
         self.cls_layer = nn.Sequential(nn.Linear(in_features = 2,
                                                 out_features = 512),
                                       nn.ReLU(), nn.Linear(in_features = 512, out_features = n_classes))

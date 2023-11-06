@@ -11,7 +11,7 @@ from transformers import LayoutLMv3FeatureExtractor, LayoutLMv3TokenizerFast, La
 
 
 featur_extractor = LayoutLMv3FeatureExtractor(apply_ocr=False)
-tokeniser = LayoutLMv3TokenizerFast.from_pretrained("D:/Projects/AI_Projects/NLP/Document_AI/LayoutLM_Models/inputs/layoutlmv3Microsoft",ignore_mismatched_sizes=True)
+tokeniser = LayoutLMv3TokenizerFast.from_pretrained("microsoft/layoutlmv3-base",ignore_mismatched_sizes=True)
 processor = LayoutLMv3Processor(tokenizer=tokeniser,feature_extractor=featur_extractor)
 
 

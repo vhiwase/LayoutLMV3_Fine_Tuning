@@ -16,7 +16,11 @@ python -m pip install paddlepaddle==2.5.2 -i https://pypi.tuna.tsinghua.edu.cn/s
 python -m pip install git+https://github.com/PaddlePaddle/PaddleClas.git
 python -m pip install git+https://github.com/vhiwase/PaddleOCR.git
 ```
-
+```sh
+python -m pip install git+https://github.com/huggingface/transformers.git
+python -m pip install datasets seqeval
+python -m pip install torch torchvision torchaudio
+```
 #### Install the following in different virtual environment
 ```sh
 python -m pip install -r requirements/requirements_label_studio.txt
@@ -25,6 +29,23 @@ or
 ```sh
 pip install label-studio
 ```
+### Step1:
 ```sh
-label-studio
+python Convert_pdf_to_images.py
+```
+### Step2:
+```sh
+python Create_LMv3_dataset_with_paddleOCR.py
+```
+### Step3:
+```sh
+python simple_http_server.py
+```
+### Step4:
+```sh
+label-studio -p 8081
+```
+### Step5:
+```sh
+python Label_studio_to_layoutLMV3.py
 ```
