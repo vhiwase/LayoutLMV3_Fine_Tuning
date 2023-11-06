@@ -1,5 +1,6 @@
 import os
 from paddleocr import PaddleOCR
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import json
 from uuid import uuid4
@@ -12,10 +13,6 @@ ocr = PaddleOCR(use_angle_cls=False,
                 lang='en',
                   rec=False,
                 ) # need to run only once to download and load model into memory 
-
-
-images_folder_path  = "D:/Projects/AI_Projects/NLP/Document_AI/LayoutLM_Models/image" 
-
 
 def create_image_url(filename):
     """
@@ -63,42 +60,26 @@ def extracted_tables_to_label_studio_json_file_with_paddleOCR(images_folder_path
         if images.endswith('.png'):
             output_json = {}
             annotation_result = []
-
-            print(images)
-
             output_json['data'] =  {"ocr":create_image_url(images)}
-
-                    
-            img = Image.open(f'D:/Projects/AI_Projects/NLP/Document_AI/LayoutLM_Models/image/{images}')
-
+            img_path = Path(images_folder_path) / images
+            img = Image.open(img_path.as_posix())
             img = np.asarray(img)
             image_height, image_width = img.shape[:2]
-
-
             result = ocr.ocr(img,cls=False)
-
-            #print(result)
-
             for output in result:
-
                 for item in output: 
                     co_ord = item[0]
                     text = item[1][0]
-
                     four_co_ord = [co_ord[0][0],co_ord[1][1],co_ord[2][0]-co_ord[0][0],co_ord[2][1]-co_ord[1][1]]
-
                     #print(four_co_ord)
                     #print(text)
-
                     bbox = {
                     'x': 100 * four_co_ord[0] / image_width,
                     'y': 100 * four_co_ord[1] / image_height,
                     'width': 100 * four_co_ord[2] / image_width,
                     'height': 100 * four_co_ord[3] / image_height,
                     'rotation': 0
-                            }
-                    
-
+                    }
                     if not text:
                         continue
                     region_id = str(uuid4())[:10]
@@ -112,14 +93,15 @@ def extracted_tables_to_label_studio_json_file_with_paddleOCR(images_folder_path
                     annotation_result.extend([bbox_result, transcription_result])
                     #print('annotation_result :\n',annotation_result)
             output_json['predictions'] = [ {"result": annotation_result,  "score":0.97}]
-
             label_studio_task_list.append(output_json)
-        
+
 
     # saving label_stdui_task_list as json file to import in label_studio
-    with open('TC_label-studio_input_file.json', 'w') as f:
+    json_path = Path(images_folder_path).parent / f"{Path(images_folder_path).stem}.json"
+    with open(json_path.as_posix(), 'w') as f:
         json.dump(label_studio_task_list, f, indent=4)
 
 
-extracted_tables_to_label_studio_json_file_with_paddleOCR(images_folder_path)
-#   
+if __name__ == "__main__":
+    images_folder_path  = "C:/Users/VaibhavHiwase/OneDrive - TechnoMile/Documents/Python Scripts/ICI/LayoutLMV3_Fine_Tuning/working/W9127821R0012+SF-33/"
+    extracted_tables_to_label_studio_json_file_with_paddleOCR(images_folder_path)
