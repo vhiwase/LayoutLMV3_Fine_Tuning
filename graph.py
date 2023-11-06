@@ -123,7 +123,7 @@ d['index'] = new_role.index
 
 # Create a graph from the edge list
 G = nx.Graph()
-edge_list = new_role['I'].apply(lambda x: list(x[0][1:3])).tolist()
+edge_list = new_role['I'].apply(lambda x: list(x[0][0:2])).tolist()
 G.add_edges_from(edge_list)
 
 # Detect communities using the Louvain method

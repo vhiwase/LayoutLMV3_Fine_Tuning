@@ -743,7 +743,7 @@ def create_read_results_dataframes(result):
     angle_lst = []
     width_lst = []
     height_lst = []
-    for paragraph_number in line_dataframe['paragraph_numbers']:
+    for paragraph_number in sorted(set(line_dataframe['paragraph_numbers'])):
         para_df = line_dataframe[line_dataframe['paragraph_numbers']==paragraph_number]
         top_left_x = min(para_df['top_left_x'])
         top_left_y = min(para_df['top_left_y'])
