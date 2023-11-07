@@ -1,12 +1,7 @@
-logs/
-model_store/
-my_model/
-my_tokenizer/
 __pycache__/
-.env
 input/
 output/
-working/
-venv/
+env/
 inputs
-Training_layoutLMV3.json
+images
+.env
