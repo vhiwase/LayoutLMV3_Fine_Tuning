@@ -1,54 +1,164 @@
 # pip install datasets[vision]
 # pip install git+https://github.com/huggingface/transformers.git
+# pip install seqeval
+# pip install torch torchvision torchaudio
+# pip install transformers[torch]
+# pip install accelerate -U
 
-from datasets import load_dataset 
-from PIL import ImageFont, ImageDraw, ImageEnhance
+from PIL import ImageFont, ImageDraw, ImageEnhance, Image
+from PIL.PngImagePlugin import PngImageFile
 import pandas as pd
 import cv2
-
-# this dataset uses the new Image feature :)
-dataset = load_dataset("nielsr/funsd-layoutlmv3")
-
-dataset["train"].features
-
-"""
-import pyarrow as pa
-import pyarrow.dataset as ds
+import pathlib
+import os
+import filetype
+import json
+from pydantic.dataclasses import dataclass
+import datasets
+from datasets import Dataset, DatasetDict, Features, Sequence, ClassLabel, Value, Array2D, Array3D
+import numpy as np
 import pandas as pd
-from datasets import Dataset
 
-df = pd.DataFrame({'a': [0,1,2], 'b': [3,4,5]})
+@dataclass
+class OCRCoordinates:
+    top_left_x: float = None
+    top_left_y: float = None
+    top_right_x: float = None
+    top_right_y: float = None
+    bottom_right_x: float = None
+    bottom_right_y: float = None
+    bottom_left_x: float = None
+    bottom_left_y: float = None
 
-### convert to Huggingface dataset
-hg_dataset = Dataset(pa.Table.from_pandas(df))
+try:
+    base = pathlib.Path(__file__)
+except NameError:
+    base = pathlib.Path('.')
 
-### Huggingface dataset to pandas
-df = pd.DataFrame(hg_dataset)
+root = base.parent
+annotation_folderpath = root / 'annotation'
+images_path = []
+for filename in os.listdir(annotation_folderpath):
+    file_path = annotation_folderpath / filename
+    kind = filetype.guess(file_path)
+    if kind and 'image' in kind.MIME.lower():
+        images_path.append(file_path)
 
-"""
 
+fields_path = annotation_folderpath / 'fields.json'
+with open(fields_path, 'rb') as f:
+    fields_dict = json.loads(f.read())
+label2id = dict()
+id2label = dict()
+for fenum, field in enumerate(fields_dict['fields']):
+    label = field['fieldKey']
+    label2id[label] = fenum
+    id2label[fenum] = label
+images = []
+ids = []
+ner_tags_lst = []
+tokens_lst = []
+bboxes_lst = []
+for enum, image_path in enumerate(images_path):
+    filerootname = image_path.stem
+    if '_resized' in filerootname:
+        continue
+    label_json_path = image_path.parent / f'{filerootname}.png.labels.json'
+    image_path = image_path.parent / f'{filerootname}.png'
+    ocr_json_path = image_path.parent / f'{filerootname}.png.ocr.json'
+    with open(label_json_path, 'rb') as f:
+        label_dict = json.loads(f.read())
+    with open(ocr_json_path, 'rb') as f:
+        ocr_dict = json.loads(f.read())
+    image = Image.open(image_path)
+    new_height = 1000    
+    # Calculate the new width while maintaining the aspect ratio
+    width, height = image.size
+    new_width = int(width * (new_height / height))
+    # Resize the image
+    resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    resized_image_path = image_path.parent / f'{image_path.stem}_resized.png'
+    resized_image.save(resized_image_path)
+    resized_image = Image.open(resized_image_path)
+    labels = label_dict['labels']
+    pages = []
+    texts = []
+    label_lst = []
+    top_left_x_lst = []
+    top_left_y_lst = []
+    top_right_x_lst = []
+    top_right_y_lst = []
+    bottom_right_x_lst = []
+    bottom_right_y_lst = []
+    bottom_left_x_lst = []
+    bottom_left_y_lst = []
+    for l in labels:
+        for item in l['value']:
+            label_lst.append(label2id[l['label']])
+            texts.append(item['text'])
+            pages.append(item['page'])
+            bbox = item['boundingBoxes'][0]
+            ocr_coordinates = OCRCoordinates(*bbox)
+            top_left_x_lst.append(ocr_coordinates.top_left_x)
+            top_left_y_lst.append(ocr_coordinates.top_left_y)
+            top_right_x_lst.append(ocr_coordinates.top_right_x)
+            top_right_y_lst.append(ocr_coordinates.top_right_y)
+            bottom_right_x_lst.append(ocr_coordinates.bottom_right_x)
+            bottom_right_y_lst.append(ocr_coordinates.bottom_right_y)
+            bottom_left_x_lst.append(ocr_coordinates.bottom_left_x)
+            bottom_left_y_lst.append(ocr_coordinates.bottom_left_y)
+    df = pd.DataFrame()
+    df['text'] = texts
+    df['label'] = label_lst
+    df['page'] = pages
+    df['top_left_x'] = top_left_x_lst
+    df['top_left_y'] = top_left_y_lst
+    df['top_right_x'] = top_right_x_lst
+    df['top_right_y'] = top_right_y_lst
+    df['bottom_right_x'] = bottom_right_x_lst
+    df['bottom_right_y'] = bottom_right_y_lst
+    df['bottom_left_x'] = bottom_left_x_lst
+    df['bottom_left_y'] = bottom_left_y_lst
+    df = df.sort_values(by=['page', 'bottom_left_y', 'bottom_left_x'], ignore_index=True)
+    ner_tags = df['label'].tolist()
+    df_copy = df.copy()
+    width, height = resized_image.size
+    df_copy['top_left_x'] = df_copy['top_left_x'] * width
+    df_copy['top_left_y'] = df_copy['top_left_y'] * height
+    df_copy['bottom_right_x'] = df_copy['bottom_right_x'] * width
+    df_copy['bottom_right_y'] = df_copy['bottom_right_y'] * height
+    bboxes = (df_copy[['top_left_x', 'top_left_y', 'bottom_right_x', 'bottom_right_y']]).astype(np.int64).values.tolist()
+    tokens = df['text'].tolist()
+    ids.append(enum)
+    tokens_lst.append(tokens)
+    bboxes_lst.append(bboxes)
+    ner_tags_lst.append(ner_tags)
+    images.append(resized_image)
 
-from datasets import Dataset, Image, DatasetDict, Features, Sequence, ClassLabel, Value, Array2D, Array3D
-
-train_df = pd.DataFrame(dataset["train"])
-test_df = pd.DataFrame(dataset["test"])
-
+dataframe = pd.DataFrame()
+dataframe['id'] = ids
+dataframe['tokens'] = [tokens_lst[0][:200]]
+dataframe['bboxes'] = [bboxes_lst[0][:200]]
+dataframe['ner_tags'] = [ner_tags_lst[0][:200]]
+dataframe['image'] = images
+train_df = dataframe
+test_df = dataframe
+#########################################################################################
 
 def plot(test_or_train_df, index, should_unnormalize=False):
     def unnormalize_box(bboxes, width, height):
         unnormalize_lst = []
         for bbox in bboxes:
             unnormalize_bbox = [
-                width * (bbox[0] / 1000),
-                height * (bbox[1] / 1000),
-                width * (bbox[2] / 1000),
-                height * (bbox[3] / 1000)
+                width * (bbox[0]),
+                height * (bbox[1]),
+                width * (bbox[2]),
+                height * (bbox[3])
             ]
             unnormalize_lst.append(unnormalize_bbox)
         return unnormalize_lst
     
     def plot_bbox_image(input_file, dataframe):
-        from PIL import Image
         img = np.asarray(image)
         for i in range(len(dataframe)):
             x = dataframe.x[i]
@@ -82,7 +192,7 @@ def plot(test_or_train_df, index, should_unnormalize=False):
     df['h'] = h
     return plot_bbox_image(input_file=image, dataframe=df)
 
-plot(test_or_train_df=test_df, index=4, should_unnormalize=True)
+plot(test_or_train_df=test_df, index=0, should_unnormalize=False)
 
 ################ Step 1: Convert dataframe to huggingface dataset ###################################
 
@@ -91,8 +201,8 @@ features = Features({
     'id': Value(dtype='string', id=None),
     'tokens': Sequence(feature=Value(dtype='string', id=None), length=-1, id=None),
     'bboxes': Sequence(feature=Sequence(feature=Value(dtype='int64', id=None), length=-1, id=None), length=-1, id=None),
-    'ner_tags': Sequence(feature=ClassLabel(names=['O', 'B-HEADER', 'I-HEADER', 'B-QUESTION', 'I-QUESTION', 'B-ANSWER', 'I-ANSWER'], id=None), length=-1, id=None),
-    'image': Image(decode=True, id=None)
+    'ner_tags': Sequence(feature=ClassLabel(names=sorted(label2id, key=label2id.get), id=None), length=-1, id=None),
+    'image': datasets.Image(decode=True, id=None)
    }
 )
 
@@ -124,10 +234,10 @@ from PIL import ImageDraw, ImageFont
 
 def unnormalize_box(bbox, width, height):
      return [
-         width * (bbox[0] / 1000),
-         height * (bbox[1] / 1000),
-         width * (bbox[2] / 1000),
-         height * (bbox[3] / 1000),
+         (bbox[0]),
+         (bbox[1]),
+         (bbox[2]),
+         (bbox[3]),
      ]
 
 example = dataset["train"][0]
@@ -146,7 +256,10 @@ for word, box, ner_tag in zip(words, true_boxes, ner_tags):
     print(word, labels_list[ner_tag])
     w.append(word)
     t.append(labels_list[ner_tag])
-    draw.rectangle(box, outline='green')
+    try:
+        draw.rectangle(box, outline='green')
+    except ValueError:
+        continue
     draw.text((box[0] + 10, box[1] - 10), text=labels_list[ner_tag], fill="red", font=font)
 
 source_img 
@@ -304,7 +417,13 @@ from transformers import LayoutLMv3ForTokenClassification
 model = LayoutLMv3ForTokenClassification.from_pretrained("microsoft/layoutlmv3-base",
                                                          id2label=id2label,
                                                          label2id=label2id)
+                                                         # max_position_embeddings=514*3,
+                                                         # ignore_mismatched_sizes=True)
 
+# model.config.max_position_embeddings=514*3
+# model_config = model.config
+# model = LayoutLMv3ForTokenClassification.from_pretrained("microsoft/layoutlmv3-base",
+#                                                          config=model_config)
 
 from transformers import TrainingArguments, Trainer
 
@@ -357,10 +476,16 @@ words = example["tokens"]
 boxes = example["bboxes"]
 word_labels = example["ner_tags"]
 
+example = train_dataset[0]
+for k,v in example.items():
+    print(k,v.shape)
+
 encoding = processor(image, words, boxes=boxes, word_labels=word_labels, return_tensors="pt")
 for k,v in encoding.items():
   print(k,v.shape)
-  
+
+print(model.config.max_position_embeddings)
+
 with torch.no_grad():
   outputs = model(**encoding)
   
@@ -382,10 +507,10 @@ print(labels)
 
 def unnormalize_box(bbox, width, height):
      return [
-         width * (bbox[0] / 1000),
-         height * (bbox[1] / 1000),
-         width * (bbox[2] / 1000),
-         height * (bbox[3] / 1000),
+         (bbox[0]),
+         (bbox[1]),
+         (bbox[2]),
+         (bbox[3]),
      ]
 
 token_boxes = encoding.bbox.squeeze().tolist()
@@ -412,11 +537,17 @@ def iob_to_label(label):
       return 'other'
     return label
 
-label2color = {'question':'blue', 'answer':'green', 'header':'orange', 'other':'violet'}
+label2color = {'toc-description':'blue', 'key':'green', 'header':'orange', 'other':'violet', 'footer': "brown", "toc":"red",
+               "toc-page": "black", "toc-header": "pink", "toc-column": "purple", "title": "gray", "toc-section": "lime",
+               "notselected": "maroon", "value": "olive", "selected": "fuchsia"}
 
 for prediction, box in zip(true_predictions, true_boxes):
-    predicted_label = iob_to_label(prediction).lower()
-    draw.rectangle(box, outline=label2color[predicted_label])
+    if prediction!='other':
+        predicted_label = iob_to_label(prediction).lower()
+    try:
+        draw.rectangle(box, outline=label2color[predicted_label])
+    except ValueError:
+        continue
     draw.text((box[0] + 10, box[1] - 10), text=predicted_label, fill=label2color[predicted_label], font=font)
 
 image
